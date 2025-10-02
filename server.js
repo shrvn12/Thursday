@@ -306,6 +306,8 @@ setInterval(() => {
   });
 }, 5 * 60 * 1000);
 
-app.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
-});
+// app.listen(PORT, () => {
+//   console.log(`Server running at http://localhost:${PORT}`);
+// });
+
+module.exports = app;
