@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Room Chat - Join</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            overflow: hidden;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .main-container {
+            display: flex;
+            max-width: 1000px;
+            width: 95%;
+            height: 90vh;
+            max-height: 650px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+        
+        .left-panel {
+            flex: 1;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+        }
+        
+        .right-panel {
+            flex: 1;
+            background: white;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .app-title {
+            font-size: 28px;
+            font-weight: 800;
+            color: #1e293b;
+            margin: 0 0 8px 0;
+            text-align: center;
+        }
+        
+        .app-subtitle {
+            color: #64748b;
+            font-size: 14px;
+            margin: 0 0 25px 0;
+            text-align: center;
+            line-height: 1.4;
+        }
+        
+        .panel-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1e293b;
+            margin: 0 0 20px 0;
+            text-align: center;
+        }
+
+        .room-display {
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 0 0 20px 0;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+
+        .room-label {
+            color: #64748b;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+
+        .room-id {
+            font-size: 24px;
+            font-weight: 800;
+            color: #667eea;
+            letter-spacing: 2px;
+            font-family: 'Courier New', monospace;
+            margin: 0 0 8px 0;
+        }
+
+        .share-text {
+            color: #64748b;
+            font-size: 11px;
+            margin: 0;
+            font-weight: 500;
+        }
+
+        .qr-container {
+            margin: 10px 0 0 0;
+            text-align: center;
+        }
+
+        .qr-code {
+            display: inline-block;
+            margin: 0;
+            padding: 6px;
+            background: white;
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .share-buttons {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .share-btn {
+            flex: 1;
+            padding: 6px 10px;
+            font-size: 11px;
+            background: #f1f5f9;
+            color: #667eea;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .share-btn:hover {
+            background: #e2e8f0;
+            transform: translateY(-1px);
+        }
+        
+        .join-section {
+            padding: 0;
+        }
+
+        input {
+            padding: 12px 16px;
+            font-size: 15px;
+            width: 100%;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            transition: border-color 0.2s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        button {
+            padding: 12px 24px;
+            font-size: 15px;
+            width: 100%;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background: #5568d3;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .status {
+            margin-top: 15px;
+            padding: 8px 12px;
+            border-radius: 6px;
+            text-align: center;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .waiting {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .copy-success {
+            color: #4ade80;
+            font-size: 12px;
+            margin-top: 8px;
+            text-align: center;
+            font-weight: 600;
+        }
+        
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .main-container {
+                flex-direction: column;
+                height: 95vh;
+                max-height: none;
+            }
+            
+            .left-panel, .right-panel {
+                padding: 20px;
+            }
+            
+            .room-id {
+                font-size: 20px;
+            }
+            
+            .app-title {
+                font-size: 24px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="main-container">
+        <!-- Left Panel - Create/Host Room -->
+        <div class="left-panel">
+            <h1 class="app-title">Room Chat</h1>
+            <p class="app-subtitle">Create a private chat room and share with a friend</p>
+            
+            <div class="panel-title">Your Room</div>
+            
+            <div class="room-display">
+                <div class="room-label">Room ID</div>
+                <div class="room-id" id="roomId"></div>
+                <div class="share-text">Share this code or scan QR to join</div>
+                
+                <!-- QR Code always visible -->
+                <div class="qr-container">
+                    <div class="qr-code" id="qrCode"></div>
+                </div>
+                
+                <div class="share-buttons">
+                    <button class="share-btn" onclick="copyRoomLink()">📋 Link</button>
+                    <button class="share-btn" onclick="copyRoomCode()">📝 Code</button>
+                </div>
+            </div>
+            
+            <div class="copy-success" id="copySuccess" style="display: none;">✓ Copied!</div>
+            
+            <div id="waitingStatus" class="status waiting" style="display: none;">
+                🔄 Waiting for someone to join your room...
+            </div>
+        </div>
+        
+        <!-- Right Panel - Join Room -->
+        <div class="right-panel">
+            <div class="panel-title">Join a Room</div>
+            
+            <div class="join-section">
+                <input id="joinInput" placeholder="Enter 6-digit Room ID" maxlength="6" />
+                <button onclick="joinRoom()">Join Room</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script>
+        const clientId = crypto.randomUUID();
+        let myRoom = Math.floor(100000 + Math.random() * 900000).toString();
+
+        document.getElementById("roomId").textContent = myRoom;
+        document.getElementById("waitingStatus").style.display = "block";
+        
+        // Generate QR code immediately
+        generateQRCode();
+
+        // Poll to check if someone joined my room
+        async function checkForJoin() {
+            while (true) {
+                try {
+                    const res = await fetch(`/check-join?room=${myRoom}&client=${clientId}`);
+                    
+                    if (res.status === 429) {
+                        const data = await res.json();
+                        if (data.full) {
+                            showErrorMessage("Room is full! Maximum 2 users allowed.");
+                            break;
+                        }
+                    }
+                    
+                    if (res.status === 404) {
+                        console.log("Room no longer exists, creating new one");
+                        // Room was cleaned up, generate new room
+                        myRoom = Math.floor(100000 + Math.random() * 900000).toString();
+                        document.getElementById("roomId").textContent = myRoom;
+                        generateQRCode();
+                        continue;
+                    }
+                    
+                    const data = await res.json();
+
+                    if (data.joined) {
+                        // Someone joined! Redirect to chat
+                        window.location.href = `chat.html?room=${myRoom}&client=${clientId}`;
+                        break;
+                    }
+                } catch (err) {
+                    console.error("Check join error", err);
+                    // If there's a network error, continue trying
+                }
+                await new Promise(r => setTimeout(r, 1000));
+            }
+        }
+
+        async function joinRoom() {
+            const joinId = document.getElementById("joinInput").value.trim();
+            if (joinId) {
+                try {
+                    // Test if the room is full before redirecting
+                    const res = await fetch(`/recv?room=${joinId}&client=${clientId}`);
+                    
+                    if (res.status === 429) {
+                        const data = await res.json();
+                        if (data.full) {
+                            showErrorMessage("Room is full! Maximum 2 users allowed.");
+                            return;
+                        }
+                    }
+                    
+                    // If not full, proceed to join
+                    window.location.href = `chat.html?room=${joinId}&client=${clientId}`;
+                } catch (err) {
+                    console.error("Error checking room:", err);
+                    // Still try to join if there's a network error
+                    window.location.href = `chat.html?room=${joinId}&client=${clientId}`;
+                }
+            }
+        }
+
+        function generateQRCode() {
+            const qrDiv = document.getElementById('qrCode');
+            qrDiv.innerHTML = '';
+
+            const shareUrl = window.location.origin + '/index.html?join=' + myRoom;
+            new QRCode(qrDiv, {
+                text: shareUrl,
+                width: 150,
+                height: 150
+            });
+        }
+
+        function copyRoomLink() {
+            const shareUrl = window.location.origin + '/index.html?join=' + myRoom;
+            navigator.clipboard.writeText(shareUrl).then(() => {
+                showCopySuccess('Link copied to clipboard!');
+            });
+        }
+        
+        function copyRoomCode() {
+            navigator.clipboard.writeText(myRoom).then(() => {
+                showCopySuccess('Room code copied to clipboard!');
+            });
+        }
+        
+        function showCopySuccess(message) {
+            const successMsg = document.getElementById('copySuccess');
+            successMsg.textContent = '✓ ' + message;
+            successMsg.style.display = 'block';
+            setTimeout(() => successMsg.style.display = 'none', 2000);
+        }
+        
+        function showErrorMessage(message) {
+            const successMsg = document.getElementById('copySuccess');
+            successMsg.textContent = '⚠ ' + message;
+            successMsg.style.display = 'block';
+            successMsg.style.color = '#dc2626'; // Red color for errors
+            setTimeout(() => {
+                successMsg.style.display = 'none';
+                successMsg.style.color = '#4ade80'; // Reset to green
+            }, 4000); // Show error longer
+        }
+
+        // Check for auto-join from URL parameter
+        window.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const autoJoin = urlParams.get("join");
+            if (autoJoin) {
+                window.location.href = `chat.html?room=${autoJoin}&client=${clientId}`;
+            }
+        });
+
+        checkForJoin();
+    </script>
+
+</body>
+
+</html>

@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Room Chat - Conversation</title>
+  <style>
+    body { 
+      font-family: sans-serif; 
+      margin: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .header {
+      background: #667eea;
+      color: white;
+      padding: 15px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .room-info {
+      font-size: 14px;
+    }
+    .room-number {
+      font-weight: bold;
+      font-size: 18px;
+      font-family: monospace;
+    }
+    .header-right {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255,255,255,0.2);
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 13px;
+    }
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    .status-online { background: #4ade80; }
+    .status-away { background: #fbbf24; }
+    .status-offline { background: #ef4444; }
+    .status-disconnected { background: #6b7280; }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    .icon-btn {
+      background: white;
+      color: #667eea;
+      border: none;
+      padding: 8px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .icon-btn:hover {
+      background: #f0f0f0;
+    }
+    .leave-btn {
+      background: white;
+      color: #667eea;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .leave-btn:hover {
+      background: #f0f0f0;
+    }
+    #chat { 
+      display: flex; 
+      gap: 0;
+      flex: 1;
+      overflow: hidden;
+      position: relative;
+    }
+    #me, #other {
+      flex: 1; 
+      padding: 20px;
+      font-size: 18px; 
+      white-space: pre-wrap; 
+      overflow-y: auto;
+      line-height: 1.6;
+      position: relative;
+    }
+    #me { 
+      background: #f9f9f9; 
+      border-right: 2px solid #ddd;
+    }
+    #other { 
+      background: #eef7ff;
+    }
+    #me:focus {
+      outline: 2px solid #667eea;
+      outline-offset: -2px;
+    }
+    .panel-label {
+      font-size: 12px;
+      color: #999;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 10px;
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .panel-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .preview-btn {
+      background: #667eea;
+      color: white;
+      border: none;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-transform: none;
+      letter-spacing: normal;
+      font-weight: 500;
+    }
+    
+    .preview-btn:hover {
+      background: #5568d3;
+      transform: scale(1.05);
+    }
+    
+    .preview-btn.active {
+      background: #10b981;
+    }
+    
+    .preview-btn.active:hover {
+      background: #059669;
+    }
+    
+    /* Markdown content styling */
+    .markdown-content {
+      font-family: inherit;
+      line-height: 1.6;
+    }
+    
+    .markdown-content h1 {
+      font-size: 20px;
+      font-weight: 700;
+      margin: 12px 0 8px 0;
+      color: #1e293b;
+      border-bottom: 2px solid #e2e8f0;
+      padding-bottom: 4px;
+    }
+    
+    .markdown-content h2 {
+      font-size: 18px;
+      font-weight: 600;
+      margin: 10px 0 6px 0;
+      color: #334155;
+    }
+    
+    .markdown-content h3 {
+      font-size: 16px;
+      font-weight: 600;
+      margin: 8px 0 4px 0;
+      color: #475569;
+    }
+    
+    .markdown-content p {
+      margin: 6px 0;
+    }
+    
+    .markdown-content ul, .markdown-content ol {
+      margin: 6px 0;
+      padding-left: 20px;
+    }
+    
+    .markdown-content li {
+      margin: 2px 0;
+    }
+    
+    .markdown-content blockquote {
+      border-left: 4px solid #667eea;
+      margin: 8px 0;
+      padding: 4px 0 4px 12px;
+      background: #f8fafc;
+      font-style: italic;
+      color: #64748b;
+    }
+    
+    .markdown-content code {
+      background: #f1f5f9;
+      padding: 2px 4px;
+      border-radius: 3px;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      color: #be185d;
+    }
+    
+    .markdown-content pre {
+      background: #1e293b;
+      color: #f1f5f9;
+      padding: 12px;
+      border-radius: 6px;
+      overflow-x: auto;
+      margin: 8px 0;
+    }
+    
+    .markdown-content pre code {
+      background: none;
+      padding: 0;
+      color: inherit;
+    }
+    
+    .markdown-content a {
+      color: #667eea;
+      text-decoration: underline;
+    }
+    
+    .markdown-content a:hover {
+      color: #5568d3;
+    }
+    
+    .markdown-content strong {
+      font-weight: 600;
+      color: #1e293b;
+    }
+    
+    .markdown-content em {
+      font-style: italic;
+      color: #475569;
+    }
+    
+    .markdown-content hr {
+      border: none;
+      border-top: 2px solid #e2e8f0;
+      margin: 12px 0;
+    }
+    
+    .markdown-content table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 8px 0;
+    }
+    
+    .markdown-content th, .markdown-content td {
+      border: 1px solid #e2e8f0;
+      padding: 6px 8px;
+      text-align: left;
+    }
+    
+    .markdown-content th {
+      background: #f8fafc;
+      font-weight: 600;
+    }
+    
+    /* Raw view styling */
+    #otherRaw {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      margin: 10px;
+      padding: 15px;
+      font-family: 'Courier New', Monaco, monospace;
+      font-size: 13px;
+      line-height: 1.5;
+      color: #475569;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+    }
+    .char-count {
+      font-size: 11px;
+      color: #bbb;
+      font-weight: normal;
+    }
+    .emoji-float {
+      position: fixed;
+      font-size: 32px;
+      pointer-events: none;
+      z-index: 1000;
+      font-weight: bold;
+      text-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+      animation: floatUp 3s ease-out forwards;
+      user-select: none;
+      will-change: transform, opacity;
+    }
+    
+    .emoji-float:nth-child(odd) {
+      animation: floatUpLeft 3s ease-out forwards;
+    }
+    
+    .emoji-float:nth-child(even) {
+      animation: floatUpRight 3s ease-out forwards;
+    }
+    
+    @keyframes floatUp {
+      0% {
+        transform: translateY(0) scale(1) rotate(0deg);
+        opacity: 1;
+      }
+      50% {
+        transform: translateY(-100px) scale(1.3) rotate(5deg);
+        opacity: 0.8;
+      }
+      100% {
+        transform: translateY(-200px) scale(1.5) rotate(10deg);
+        opacity: 0;
+      }
+    }
+    
+    @keyframes floatUpLeft {
+      0% {
+        transform: translateY(0) translateX(0) scale(1) rotate(0deg);
+        opacity: 1;
+      }
+      50% {
+        transform: translateY(-100px) translateX(-20px) scale(1.3) rotate(-5deg);
+        opacity: 0.8;
+      }
+      100% {
+        transform: translateY(-200px) translateX(-40px) scale(1.5) rotate(-10deg);
+        opacity: 0;
+      }
+    }
+    
+    @keyframes floatUpRight {
+      0% {
+        transform: translateY(0) translateX(0) scale(1) rotate(0deg);
+        opacity: 1;
+      }
+      50% {
+        transform: translateY(-100px) translateX(20px) scale(1.3) rotate(5deg);
+        opacity: 0.8;
+      }
+      100% {
+        transform: translateY(-200px) translateX(40px) scale(1.5) rotate(10deg);
+        opacity: 0;
+      }
+    }
+    .emoji-picker {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: white;
+      padding: 15px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+      display: none;
+      z-index: 100;
+    }
+    .emoji-picker.show {
+      display: block;
+    }
+    .emoji-btn {
+      font-size: 28px;
+      border: none;
+      background: none;
+      cursor: pointer;
+      padding: 5px;
+      transition: transform 0.2s;
+    }
+    .emoji-btn:hover {
+      transform: scale(1.3);
+    }
+    .floating-emoji-toggle {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: #667eea;
+      color: white;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      z-index: 99;
+    }
+    .floating-emoji-toggle:hover {
+      background: #5568d3;
+      transform: scale(1.1);
+    }
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+    }
+    .modal.show {
+      display: flex;
+    }
+    .modal-content {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      max-width: 400px;
+      text-align: center;
+    }
+    .modal-content h3 {
+      margin-top: 0;
+    }
+    .qr-code {
+      margin: 20px 0;
+    }
+    .copy-success {
+      color: #4ade80;
+      font-size: 14px;
+      margin-top: 10px;
+    }
+    .close-modal {
+      margin-top: 15px;
+      padding: 10px 20px;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="room-info">Room ID</div>
+      <div class="room-number" id="roomDisplay"></div>
+    </div>
+    <div class="header-right">
+      <div class="status-indicator">
+        <div class="status-dot" id="statusDot"></div>
+        <span id="statusText">Connecting...</span>
+      </div>
+      <button class="leave-btn" onclick="leaveRoom()">Leave Room</button>
+    </div>
+  </div>
+
+  <div id="chat">
+    <div style="flex: 1; display: flex; flex-direction: column; background: #f9f9f9; border-right: 2px solid #ddd;">
+      <div style="padding: 15px 20px 0 20px;">
+        <div class="panel-label">
+          <span>You (markdown supported)</span>
+          <div class="panel-controls">
+            <button class="preview-btn" id="previewBtn" onclick="togglePreview()" title="Toggle Markdown Preview">
+              👁️ Preview
+            </button>
+            <span class="char-count" id="myCharCount">0 characters</span>
+          </div>
+        </div>
+      </div>
+      <div id="me" contenteditable="true" style="flex: 1; padding-top: 10px; display: block;"></div>
+      <div id="myPreview" style="flex: 1; padding-top: 10px; display: none; overflow-y: auto; line-height: 1.6;"></div>
+    </div>
+    <div style="flex: 1; display: flex; flex-direction: column; background: #eef7ff;">
+      <div style="padding: 15px 20px 0 20px;">
+        <div class="panel-label">
+          <span>Other Person</span>
+          <div class="panel-controls">
+            <button class="preview-btn" id="rawViewBtn" onclick="toggleRawView()" title="Toggle Raw Markdown View">
+              📄 Raw
+            </button>
+            <span class="char-count" id="otherCharCount">0 characters</span>
+          </div>
+        </div>
+      </div>
+      <div id="other" style="flex: 1; padding-top: 10px; display: block;"></div>
+      <div id="otherRaw" style="flex: 1; display: none;"></div>
+    </div>
+  </div>
+
+  <button class="floating-emoji-toggle" onclick="toggleEmojiPicker()">😊</button>
+  
+  <div class="emoji-picker" id="emojiPicker">
+    <button class="emoji-btn" onclick="sendEmoji('❤️')">❤️</button>
+    <button class="emoji-btn" onclick="sendEmoji('👍')">👍</button>
+    <button class="emoji-btn" onclick="sendEmoji('😂')">😂</button>
+    <button class="emoji-btn" onclick="sendEmoji('🎉')">🎉</button>
+    <button class="emoji-btn" onclick="sendEmoji('🔥')">🔥</button>
+    <button class="emoji-btn" onclick="sendEmoji('👏')">👏</button>
+    <button class="emoji-btn" onclick="sendEmoji('💯')">💯</button>
+    <button class="emoji-btn" onclick="sendEmoji('✨')">✨</button>
+  </div>
+
+
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.5/dist/purify.min.js"></script>
+<script>
+  const urlParams = new URLSearchParams(window.location.search);
+  const currentRoom = urlParams.get("room");
+  const clientId = urlParams.get("client") || crypto.randomUUID();
+
+  if (!currentRoom) {
+    window.location.href = "index.html";
+  }
+
+  document.getElementById("roomDisplay").textContent = currentRoom;
+
+  let lastActivity = Date.now();
+  let otherUserStatus = 'offline';
+  let emojiCounter = 0; // For varied animations
+  let lastEmojiSent = 0; // Throttling for emoji sending
+  let isPreviewMode = false; // Track preview mode state
+  let isRawViewMode = false; // Track raw view mode state
+  let otherPersonRawText = ''; // Store the raw text from other person
+
+  // Update status based on page visibility and activity
+  function updateMyStatus() {
+    const isActive = document.visibilityState === 'visible';
+    const isIdle = Date.now() - lastActivity > 30000; // 30 seconds idle
+    
+    let status = 'online';
+    if (!isActive) status = 'away';
+    if (isIdle && isActive) status = 'away';
+    
+    return status;
+  }
+
+  function updateStatusDisplay() {
+    const statusDot = document.getElementById('statusDot');
+    const statusText = document.getElementById('statusText');
+    
+    statusDot.className = 'status-dot status-' + otherUserStatus;
+    
+    const statusMessages = {
+      'online': 'Online',
+      'away': 'Away',
+      'offline': 'Offline',
+      'disconnected': 'Disconnected'
+    };
+    
+    statusText.textContent = statusMessages[otherUserStatus] || 'Connecting...';
+  }
+
+  function updateCharCount() {
+    const myElement = document.getElementById("me");
+    
+    const myText = myElement.innerText || myElement.textContent || '';
+    // Use raw text for other person's character count for consistency
+    const otherText = otherPersonRawText || '';
+    
+    document.getElementById("myCharCount").textContent = myText.length + ' characters';
+    document.getElementById("otherCharCount").textContent = otherText.length + ' characters';
+  }
+  
+  // Markdown rendering function with sanitization
+  function renderMarkdown(text) {
+    if (!text || typeof text !== 'string') return '';
+    
+    try {
+      // Configure marked with safe options
+      marked.setOptions({
+        breaks: true,
+        gfm: true,
+        sanitize: false // We'll use DOMPurify instead
+      });
+      
+      const html = marked.parse(text);
+      
+      // Sanitize the HTML to prevent XSS
+      return DOMPurify.sanitize(html, {
+        ALLOWED_TAGS: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'br', 'strong', 'em', 'u', 's', 'code', 'pre', 'blockquote', 'ul', 'ol', 'li', 'a', 'hr', 'table', 'thead', 'tbody', 'tr', 'th', 'td'],
+        ALLOWED_ATTR: ['href', 'title', 'target']
+      });
+    } catch (err) {
+      console.error('Error rendering markdown:', err);
+      return text; // Return original text if rendering fails
+    }
+  }
+  
+  // Toggle between edit and preview mode
+  function togglePreview() {
+    const meElement = document.getElementById('me');
+    const previewElement = document.getElementById('myPreview');
+    const previewBtn = document.getElementById('previewBtn');
+    
+    isPreviewMode = !isPreviewMode;
+    
+    if (isPreviewMode) {
+      // Switch to preview mode
+      const text = meElement.innerText;
+      previewElement.innerHTML = '<div class="markdown-content">' + renderMarkdown(text) + '</div>';
+      
+      meElement.style.display = 'none';
+      previewElement.style.display = 'block';
+      
+      previewBtn.textContent = '✏️ Edit';
+      previewBtn.classList.add('active');
+      previewBtn.title = 'Switch to Edit Mode';
+    } else {
+      // Switch to edit mode
+      meElement.style.display = 'block';
+      previewElement.style.display = 'none';
+      
+      previewBtn.textContent = '👁️ Preview';
+      previewBtn.classList.remove('active');
+      previewBtn.title = 'Toggle Markdown Preview';
+      
+      // Focus back to editor
+      meElement.focus();
+    }
+  }
+  
+  // Toggle between rendered and raw view for other person's content
+  function toggleRawView() {
+    const otherElement = document.getElementById('other');
+    const otherRawElement = document.getElementById('otherRaw');
+    const rawViewBtn = document.getElementById('rawViewBtn');
+    
+    isRawViewMode = !isRawViewMode;
+    
+    if (isRawViewMode) {
+      // Switch to raw view mode
+      otherRawElement.textContent = otherPersonRawText;
+      
+      otherElement.style.display = 'none';
+      otherRawElement.style.display = 'block';
+      
+      rawViewBtn.textContent = '🎨 Rendered';
+      rawViewBtn.classList.add('active');
+      rawViewBtn.title = 'Switch to Rendered View';
+    } else {
+      // Switch to rendered view mode
+      otherElement.style.display = 'block';
+      otherRawElement.style.display = 'none';
+      
+      rawViewBtn.textContent = '📄 Raw';
+      rawViewBtn.classList.remove('active');
+      rawViewBtn.title = 'Toggle Raw Markdown View';
+    }
+  }
+
+  async function leaveRoom() {
+    try {
+      await fetch(`/disconnect?room=${currentRoom}&client=${clientId}`, { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: 'user_leave' })
+      });
+    } catch (err) {
+      console.error('Error disconnecting:', err);
+    }
+    window.location.href = "index.html";
+  }
+
+  function toggleEmojiPicker() {
+    document.getElementById('emojiPicker').classList.toggle('show');
+  }
+
+  function sendEmoji(emoji) {
+    const now = Date.now();
+    
+    // Throttle emoji sending to prevent spam (max 1 per 500ms)
+    if (now - lastEmojiSent < 500) {
+      console.log('Emoji sending throttled');
+      return;
+    }
+    
+    lastEmojiSent = now;
+    
+    // Show immediate local feedback
+    createFloatingEmoji(emoji);
+    
+    // Send to server with better error handling
+    fetch(`/emoji?room=${currentRoom}&client=${clientId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ emoji })
+    })
+    .then(response => {
+      if (!response.ok) {
+        console.error('Server error sending emoji:', response.status);
+      }
+    })
+    .catch(err => {
+      console.error('Network error sending emoji:', err);
+    });
+    
+    toggleEmojiPicker();
+  }
+
+  function createFloatingEmoji(emoji) {
+    try {
+      // Create the element
+      const emojiEl = document.createElement('div');
+      emojiEl.className = 'emoji-float';
+      emojiEl.textContent = emoji;
+      emojiEl.dataset.created = Date.now().toString();
+      
+      // Increment counter for animation variation
+      emojiCounter++;
+      
+      // Get chat container dimensions for better positioning
+      const chatContainer = document.getElementById('chat');
+      if (!chatContainer) {
+        console.warn('Chat container not found, using fallback positioning');
+        // Fallback positioning
+        emojiEl.style.left = `${Math.random() * (window.innerWidth - 100)}px`;
+        emojiEl.style.top = `${window.innerHeight - 100}px`;
+      } else {
+        const chatRect = chatContainer.getBoundingClientRect();
+        
+        // Calculate a position that's always within the visible chat area
+        const padding = 60; // Space from edges
+        const minX = Math.max(chatRect.left + padding, 50);
+        const maxX = Math.min(chatRect.right - padding, window.innerWidth - 50);
+        const posX = minX + Math.random() * Math.max(maxX - minX, 100);
+        
+        // Position at the bottom of the chat area with some variation
+        const baseY = Math.max(chatRect.bottom - 120, window.innerHeight - 150);
+        const posY = baseY + (Math.random() * 40 - 20); // ±20px variation
+        
+        emojiEl.style.left = `${posX}px`;
+        emojiEl.style.top = `${posY}px`;
+      }
+      
+      // Add some random timing variation to prevent all emojis from moving identically
+      const animationDelay = Math.random() * 200; // 0-200ms delay
+      emojiEl.style.animationDelay = `${animationDelay}ms`;
+      
+      // Add slight size variation
+      const sizeVariation = 0.8 + Math.random() * 0.4; // 0.8x to 1.2x size
+      emojiEl.style.fontSize = `${32 * sizeVariation}px`;
+      
+      // Add to DOM
+      document.body.appendChild(emojiEl);
+      
+      // Enhanced cleanup with multiple fallbacks
+      const cleanup = () => {
+        try {
+          if (emojiEl && emojiEl.parentNode) {
+            emojiEl.parentNode.removeChild(emojiEl);
+          }
+        } catch (err) {
+          console.error('Error removing emoji element:', err);
+        }
+      };
+      
+      // Primary cleanup after animation
+      setTimeout(cleanup, 3200);
+      
+      // Fallback cleanup in case the first one fails
+      setTimeout(cleanup, 5000);
+      
+      // Cleanup on animation end event
+      emojiEl.addEventListener('animationend', cleanup, { once: true });
+      
+    } catch (err) {
+      console.error('Error creating floating emoji:', err);
+    }
+  }
+
+
+  async function poll() {
+    while (true) {
+      try {
+        const res = await fetch(`/recv?room=${currentRoom}&client=${clientId}`);
+        
+        if (res.status === 429) {
+          const errorData = await res.json();
+          if (errorData.full) {
+            alert("Room is full! You have been disconnected.");
+            window.location.href = "index.html";
+            return;
+          }
+        }
+        
+        const data = await res.json();
+        
+        if (data.text !== undefined) {
+          const otherElement = document.getElementById("other");
+          const otherRawElement = document.getElementById("otherRaw");
+          const text = data.text || "";
+          
+          // Store the raw text
+          otherPersonRawText = text;
+          
+          // Update rendered view
+          if (text.trim()) {
+            otherElement.innerHTML = '<div class="markdown-content">' + renderMarkdown(text) + '</div>';
+          } else {
+            otherElement.textContent = text;
+          }
+          
+          // Update raw view if it's currently visible
+          if (isRawViewMode) {
+            otherRawElement.textContent = text;
+          }
+          
+          updateCharCount();
+        }
+        
+        if (data.status) {
+          otherUserStatus = data.status;
+          updateStatusDisplay();
+        }
+        
+        // Handle user leaving the room
+        if (data.userLeft) {
+          console.log(`User left room. Remaining users: ${data.remainingUsers}`);
+          
+          // If no other users remain, redirect to landing page
+          if (data.remainingUsers === 1) {
+            alert("The other user has left the room. Returning to main page.");
+            // Clean disconnect before leaving
+            await fetch(`/disconnect?room=${currentRoom}&client=${clientId}`, { method: 'POST' });
+            window.location.href = "index.html";
+            return;
+          }
+        }
+        
+        if (data.emoji) {
+          createFloatingEmoji(data.emoji);
+        }
+      } catch (err) {
+        console.error("Polling error", err);
+        await new Promise(r => setTimeout(r, 1000));
+      }
+    }
+  }
+
+  function sendUpdate() {
+    const text = document.getElementById("me").innerText;
+    const status = updateMyStatus();
+    
+    fetch(`/send?room=${currentRoom}&client=${clientId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, status })
+    });
+    
+    lastActivity = Date.now();
+    updateCharCount();
+  }
+
+  // Track activity
+  document.addEventListener('mousemove', () => lastActivity = Date.now());
+  document.addEventListener('keypress', () => lastActivity = Date.now());
+  document.addEventListener('visibilitychange', sendUpdate);
+  
+  // Handle tab close/page navigation
+  window.addEventListener('beforeunload', () => {
+    // Send disconnect signal synchronously
+    navigator.sendBeacon(`/disconnect?room=${currentRoom}&client=${clientId}`, 
+      JSON.stringify({reason: 'page_unload'}));
+  });
+  
+  // Handle page visibility changes for better disconnect detection
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      // User switched tabs or minimized - mark as away
+      sendUpdate();
+    } else {
+      // User returned - mark as active
+      lastActivity = Date.now();
+      sendUpdate();
+    }
+  });
+
+  document.getElementById("me").addEventListener("input", sendUpdate);
+  document.getElementById("me").addEventListener("keyup", sendUpdate);
+
+  // Send heartbeat every 5 seconds
+  setInterval(sendUpdate, 5000);
+  
+  // Cleanup orphaned emoji elements every 10 seconds
+  setInterval(() => {
+    try {
+      const orphanedEmojis = document.querySelectorAll('.emoji-float');
+      orphanedEmojis.forEach(emoji => {
+        // Remove emojis that have been around for more than 6 seconds
+        const creationTime = emoji.dataset.created;
+        if (creationTime && Date.now() - parseInt(creationTime) > 6000) {
+          emoji.remove();
+        }
+      });
+    } catch (err) {
+      console.error('Error in emoji cleanup:', err);
+    }
+  }, 10000);
+
+  // Check for auto-join from URL parameter
+  const autoJoin = urlParams.get("join");
+  if (autoJoin && !currentRoom) {
+    window.location.href = `chat.html?room=${autoJoin}&client=${clientId}`;
+  }
+
+  poll();
+  updateCharCount();
+</script>
+
+</body>
+</html>
