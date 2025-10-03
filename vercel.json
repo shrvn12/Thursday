@@ -1,9 +1,16 @@
 {
   "version": 2,
-  "builds": [
-    { "src": "./server.js", "use": "@vercel/node" }
-  ],
+  "functions": {
+    "api/*.js": {
+      "runtime": "nodejs18.x"
+    }
+  },
   "routes": [
-    { "src": "/(.*)", "dest": "./server.js" }
+    { "src": "/api/send", "dest": "/api/send.js" },
+    { "src": "/api/recv", "dest": "/api/recv.js" },
+    { "src": "/api/emoji", "dest": "/api/emoji.js" },
+    { "src": "/(.*\\.(html|css|js|png|jpg|jpeg|gif|svg|ico))", "dest": "/$1" },
+    { "src": "/", "dest": "/index.html" },
+    { "src": "/chat.html", "dest": "/chat.html" }
   ]
 }
