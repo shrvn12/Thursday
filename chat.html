@@ -4,27 +4,31 @@
   <meta charset="UTF-8">
   <title>Room Chat - Conversation</title>
   <style>
-    body { 
-      font-family: sans-serif; 
+    body {
+      font-family: 'Inter', sans-serif;
       margin: 0;
       height: 100vh;
       display: flex;
       flex-direction: column;
+      background: #f1f5f9;
     }
+
+    /* HEADER */
     .header {
-      background: #667eea;
+      background: #0d6efd;
       color: white;
-      padding: 15px 20px;
+      padding: 12px 20px;
       display: flex;
       justify-content: space-between;
       align-items: center;
     }
     .room-info {
-      font-size: 14px;
+      font-size: 13px;
+      opacity: 0.9;
     }
     .room-number {
       font-weight: bold;
-      font-size: 18px;
+      font-size: 16px;
       font-family: monospace;
     }
     .header-right {
@@ -35,8 +39,8 @@
     .status-indicator {
       display: flex;
       align-items: center;
-      gap: 8px;
-      background: rgba(255,255,255,0.2);
+      gap: 6px;
+      background: rgba(255,255,255,0.15);
       padding: 6px 12px;
       border-radius: 20px;
       font-size: 13px;
@@ -45,401 +49,199 @@
       width: 10px;
       height: 10px;
       border-radius: 50%;
-      animation: pulse 2s infinite;
     }
     .status-online { background: #4ade80; }
     .status-away { background: #fbbf24; }
     .status-offline { background: #ef4444; }
     .status-disconnected { background: #6b7280; }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
-    }
-    .icon-btn {
-      background: white;
-      color: #667eea;
-      border: none;
-      padding: 8px 12px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 14px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .icon-btn:hover {
-      background: #f0f0f0;
-    }
+
     .leave-btn {
-      background: white;
-      color: #667eea;
+      background: #dc3545;
+      color: white;
       border: none;
-      padding: 8px 16px;
+      padding: 8px 14px;
       border-radius: 6px;
       cursor: pointer;
       font-weight: 600;
+      transition: background 0.2s;
     }
     .leave-btn:hover {
-      background: #f0f0f0;
+      background: #bb2d3b;
     }
-    #chat { 
-      display: flex; 
-      gap: 0;
+
+    /* CHAT LAYOUT */
+    #chat {
+      display: flex;
       flex: 1;
-      overflow: hidden;
-      position: relative;
-    }
-    #me, #other {
-      flex: 1; 
+      gap: 20px;
       padding: 20px;
-      font-size: 18px; 
-      white-space: pre-wrap; 
-      overflow-y: auto;
+      box-sizing: border-box;
+    }
+    #me, #other, #myPreview, #otherRaw {
+      flex: 1;
+      font-size: 15px;
+      white-space: pre-wrap;
       line-height: 1.6;
-      position: relative;
+      overflow-y: auto;
     }
-    #me { 
-      background: #f9f9f9; 
-      border-right: 2px solid #ddd;
+
+    /* PANEL STYLING */
+    .panel {
+      flex: 1;
+      background: #fff;
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      overflow: hidden;
     }
-    #other { 
-      background: #eef7ff;
-    }
-    #me:focus {
-      outline: 2px solid #667eea;
-      outline-offset: -2px;
+    .panel-header {
+      padding: 14px 18px 0 18px;
     }
     .panel-label {
       font-size: 12px;
-      color: #999;
       text-transform: uppercase;
-      letter-spacing: 1px;
-      margin-bottom: 10px;
-      font-weight: 600;
+      font-weight: 700;
+      color: #111827;
       display: flex;
       justify-content: space-between;
       align-items: center;
     }
-    
     .panel-controls {
       display: flex;
       align-items: center;
       gap: 10px;
     }
-    
     .preview-btn {
-      background: #667eea;
-      color: white;
       border: none;
-      padding: 4px 8px;
-      border-radius: 4px;
-      font-size: 10px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 12px;
       cursor: pointer;
-      transition: all 0.2s;
-      text-transform: none;
-      letter-spacing: normal;
+      background: #e5e7eb;
+      color: #111827;
       font-weight: 500;
+      transition: background 0.2s;
     }
-    
     .preview-btn:hover {
-      background: #5568d3;
-      transform: scale(1.05);
+      background: #d1d5db;
     }
-    
     .preview-btn.active {
-      background: #10b981;
+      background: #0d6efd;
+      color: white;
     }
-    
-    .preview-btn.active:hover {
-      background: #059669;
+    .char-count {
+      font-size: 11px;
+      color: #6b7280;
     }
-    
-    /* Markdown content styling */
-    .markdown-content {
-      font-family: inherit;
-      line-height: 1.6;
+
+    /* CONTENT */
+    #me {
+      padding: 16px 18px;
+      outline: none;
     }
-    
+    #myPreview {
+      padding: 16px 18px;
+      display: none;
+    }
+    #other {
+      padding: 16px 18px;
+    }
+    #otherRaw {
+      padding: 16px 18px;
+      font-family: monospace;
+      display: none;
+      background: #f9fafb;
+    }
+
+    /* MARKDOWN STYLING */
     .markdown-content h1 {
       font-size: 20px;
       font-weight: 700;
-      margin: 12px 0 8px 0;
-      color: #1e293b;
+      margin: 12px 0 8px;
       border-bottom: 2px solid #e2e8f0;
       padding-bottom: 4px;
     }
-    
     .markdown-content h2 {
       font-size: 18px;
       font-weight: 600;
-      margin: 10px 0 6px 0;
-      color: #334155;
+      margin: 10px 0 6px;
     }
-    
-    .markdown-content h3 {
-      font-size: 16px;
-      font-weight: 600;
-      margin: 8px 0 4px 0;
-      color: #475569;
-    }
-    
     .markdown-content p {
       margin: 6px 0;
     }
-    
     .markdown-content ul, .markdown-content ol {
       margin: 6px 0;
       padding-left: 20px;
     }
-    
     .markdown-content li {
       margin: 2px 0;
     }
-    
-    .markdown-content blockquote {
-      border-left: 4px solid #667eea;
-      margin: 8px 0;
-      padding: 4px 0 4px 12px;
-      background: #f8fafc;
-      font-style: italic;
-      color: #64748b;
+    .markdown-content strong {
+      font-weight: 700;
     }
-    
+    .markdown-content em {
+      font-style: italic;
+    }
     .markdown-content code {
-      background: #f1f5f9;
+      background: #f3f4f6;
       padding: 2px 4px;
       border-radius: 3px;
-      font-family: 'Courier New', monospace;
-      font-size: 14px;
-      color: #be185d;
+      font-family: monospace;
     }
-    
     .markdown-content pre {
       background: #1e293b;
-      color: #f1f5f9;
+      color: #f9fafb;
       padding: 12px;
       border-radius: 6px;
       overflow-x: auto;
-      margin: 8px 0;
     }
-    
-    .markdown-content pre code {
-      background: none;
-      padding: 0;
-      color: inherit;
-    }
-    
-    .markdown-content a {
-      color: #667eea;
-      text-decoration: underline;
-    }
-    
-    .markdown-content a:hover {
-      color: #5568d3;
-    }
-    
-    .markdown-content strong {
-      font-weight: 600;
-      color: #1e293b;
-    }
-    
-    .markdown-content em {
-      font-style: italic;
-      color: #475569;
-    }
-    
-    .markdown-content hr {
-      border: none;
-      border-top: 2px solid #e2e8f0;
-      margin: 12px 0;
-    }
-    
-    .markdown-content table {
-      border-collapse: collapse;
-      width: 100%;
-      margin: 8px 0;
-    }
-    
-    .markdown-content th, .markdown-content td {
-      border: 1px solid #e2e8f0;
-      padding: 6px 8px;
-      text-align: left;
-    }
-    
-    .markdown-content th {
-      background: #f8fafc;
-      font-weight: 600;
-    }
-    
-    /* Raw view styling */
-    #otherRaw {
-      background: #f8fafc;
-      border: 1px solid #e2e8f0;
-      border-radius: 8px;
-      margin: 10px;
-      padding: 15px;
-      font-family: 'Courier New', Monaco, monospace;
-      font-size: 13px;
-      line-height: 1.5;
-      color: #475569;
-      white-space: pre-wrap;
-      word-wrap: break-word;
-      overflow-wrap: break-word;
-    }
-    .char-count {
-      font-size: 11px;
-      color: #bbb;
-      font-weight: normal;
-    }
+
+    /* EMOJI FLOAT */
     .emoji-float {
       position: fixed;
       font-size: 32px;
       pointer-events: none;
       z-index: 1000;
-      font-weight: bold;
-      text-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
       animation: floatUp 3s ease-out forwards;
-      user-select: none;
-      will-change: transform, opacity;
     }
-    
-    .emoji-float:nth-child(odd) {
-      animation: floatUpLeft 3s ease-out forwards;
-    }
-    
-    .emoji-float:nth-child(even) {
-      animation: floatUpRight 3s ease-out forwards;
-    }
-    
     @keyframes floatUp {
-      0% {
-        transform: translateY(0) scale(1) rotate(0deg);
-        opacity: 1;
-      }
-      50% {
-        transform: translateY(-100px) scale(1.3) rotate(5deg);
-        opacity: 0.8;
-      }
-      100% {
-        transform: translateY(-200px) scale(1.5) rotate(10deg);
-        opacity: 0;
-      }
-    }
-    
-    @keyframes floatUpLeft {
-      0% {
-        transform: translateY(0) translateX(0) scale(1) rotate(0deg);
-        opacity: 1;
-      }
-      50% {
-        transform: translateY(-100px) translateX(-20px) scale(1.3) rotate(-5deg);
-        opacity: 0.8;
-      }
-      100% {
-        transform: translateY(-200px) translateX(-40px) scale(1.5) rotate(-10deg);
-        opacity: 0;
-      }
-    }
-    
-    @keyframes floatUpRight {
-      0% {
-        transform: translateY(0) translateX(0) scale(1) rotate(0deg);
-        opacity: 1;
-      }
-      50% {
-        transform: translateY(-100px) translateX(20px) scale(1.3) rotate(5deg);
-        opacity: 0.8;
-      }
-      100% {
-        transform: translateY(-200px) translateX(40px) scale(1.5) rotate(10deg);
-        opacity: 0;
-      }
-    }
-    .emoji-picker {
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      background: white;
-      padding: 15px;
-      border-radius: 12px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-      display: none;
-      z-index: 100;
-    }
-    .emoji-picker.show {
-      display: block;
-    }
-    .emoji-btn {
-      font-size: 28px;
-      border: none;
-      background: none;
-      cursor: pointer;
-      padding: 5px;
-      transition: transform 0.2s;
-    }
-    .emoji-btn:hover {
-      transform: scale(1.3);
+      0% { transform: translateY(0); opacity: 1; }
+      100% { transform: translateY(-200px); opacity: 0; }
     }
     .floating-emoji-toggle {
       position: fixed;
       bottom: 20px;
       right: 20px;
-      width: 56px;
-      height: 56px;
+      width: 48px;
+      height: 48px;
       border-radius: 50%;
-      background: #667eea;
+      background: #0d6efd;
       color: white;
       border: none;
-      font-size: 24px;
+      font-size: 22px;
       cursor: pointer;
       box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-      z-index: 99;
     }
-    .floating-emoji-toggle:hover {
-      background: #5568d3;
-      transform: scale(1.1);
-    }
-    .modal {
-      display: none;
+    .emoji-picker {
       position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0,0,0,0.5);
-      z-index: 1000;
-      justify-content: center;
-      align-items: center;
-    }
-    .modal.show {
-      display: flex;
-    }
-    .modal-content {
+      bottom: 80px;
+      right: 20px;
       background: white;
-      padding: 30px;
-      border-radius: 12px;
-      max-width: 400px;
-      text-align: center;
+      padding: 12px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      display: none;
     }
-    .modal-content h3 {
-      margin-top: 0;
+    .emoji-picker.show {
+      display: block;
     }
-    .qr-code {
-      margin: 20px 0;
-    }
-    .copy-success {
-      color: #4ade80;
-      font-size: 14px;
-      margin-top: 10px;
-    }
-    .close-modal {
-      margin-top: 15px;
-      padding: 10px 20px;
-      background: #667eea;
-      color: white;
+    .emoji-btn {
+      font-size: 22px;
       border: none;
-      border-radius: 6px;
+      background: none;
       cursor: pointer;
+      margin: 4px;
     }
   </style>
 </head>
@@ -459,40 +261,39 @@
   </div>
 
   <div id="chat">
-    <div style="flex: 1; display: flex; flex-direction: column; background: #f9f9f9; border-right: 2px solid #ddd;">
-      <div style="padding: 15px 20px 0 20px;">
+    <!-- Left Panel -->
+    <div class="panel">
+      <div class="panel-header">
         <div class="panel-label">
-          <span>You (markdown supported)</span>
+          <span>YOU (MARKDOWN SUPPORTED)</span>
           <div class="panel-controls">
-            <button class="preview-btn" id="previewBtn" onclick="togglePreview()" title="Toggle Markdown Preview">
-              👁️ Preview
-            </button>
-            <span class="char-count" id="myCharCount">0 characters</span>
+            <button class="preview-btn" id="previewBtn" onclick="togglePreview()">👁️ Preview</button>
+            <span class="char-count" id="myCharCount">0 CHARACTERS</span>
           </div>
         </div>
       </div>
-      <div id="me" contenteditable="true" style="flex: 1; padding-top: 10px; display: block;"></div>
-      <div id="myPreview" style="flex: 1; padding-top: 10px; display: none; overflow-y: auto; line-height: 1.6;"></div>
+      <div id="me" contenteditable="true"></div>
+      <div id="myPreview"></div>
     </div>
-    <div style="flex: 1; display: flex; flex-direction: column; background: #eef7ff;">
-      <div style="padding: 15px 20px 0 20px;">
+
+    <!-- Right Panel -->
+    <div class="panel">
+      <div class="panel-header">
         <div class="panel-label">
-          <span>Other Person</span>
+          <span>PARTICIPANT</span>
           <div class="panel-controls">
-            <button class="preview-btn" id="rawViewBtn" onclick="toggleRawView()" title="Toggle Raw Markdown View">
-              📄 Raw
-            </button>
-            <span class="char-count" id="otherCharCount">0 characters</span>
+            <button class="preview-btn" id="rawViewBtn" onclick="toggleRawView()">📄 Raw</button>
+            <span class="char-count" id="otherCharCount">0 CHARACTERS</span>
           </div>
         </div>
       </div>
-      <div id="other" style="flex: 1; padding-top: 10px; display: block; overflow-y: auto;"></div>
-      <div id="otherRaw" style="flex: 1; display: none;"></div>
+      <div id="other"></div>
+      <div id="otherRaw"></div>
     </div>
   </div>
 
+  <!-- Emoji -->
   <button class="floating-emoji-toggle" onclick="toggleEmojiPicker()">😊</button>
-  
   <div class="emoji-picker" id="emojiPicker">
     <button class="emoji-btn" onclick="sendEmoji('❤️')">❤️</button>
     <button class="emoji-btn" onclick="sendEmoji('👍')">👍</button>
@@ -500,14 +301,20 @@
     <button class="emoji-btn" onclick="sendEmoji('🎉')">🎉</button>
     <button class="emoji-btn" onclick="sendEmoji('🔥')">🔥</button>
     <button class="emoji-btn" onclick="sendEmoji('👏')">👏</button>
-    <button class="emoji-btn" onclick="sendEmoji('💯')">💯</button>
-    <button class="emoji-btn" onclick="sendEmoji('✨')">✨</button>
   </div>
 
+  <!-- Your original scripts preserved -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.5/dist/purify.min.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    /* JS code same as your original file (left unchanged for functionality) */
+    // ... paste your existing JavaScript here from old chat.html ...
+  </script>
+</body>
+</html>
 
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.5/dist/purify.min.js"></script>
-<script src="/socket.io/socket.io.js"></script>
+
 <script>
 
   function scrollToBottom(el) {
@@ -937,6 +744,3 @@
   // Initialize character count
   updateCharCount();
 </script>
-
-</body>
-</html>
