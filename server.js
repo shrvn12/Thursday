@@ -313,7 +313,7 @@ function cleanupDisconnectedUsers() {
       });
       
       // Clean up client connections for this user
-      room.clients = room.clients.filter(c => c.id !== userId);
+      room.clients = room?.clients?.filter(c => c.id !== userId);
     });
     
     // Delete empty rooms
