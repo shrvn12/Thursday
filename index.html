@@ -277,76 +277,77 @@
 
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
     <script>
         const clientId = crypto.randomUUID();
         let myRoom = Math.floor(100000 + Math.random() * 900000).toString();
+        let socket = null;
+        let isConnected = false;
 
         document.getElementById("roomId").textContent = myRoom;
         document.getElementById("waitingStatus").style.display = "block";
         
         // Generate QR code immediately
         generateQRCode();
+        
+        // Initialize Socket.IO connection
+        initializeSocket();
 
-        // Poll to check if someone joined my room
-        async function checkForJoin() {
-            while (true) {
-                try {
-                    const res = await fetch(`/check-join?room=${myRoom}&client=${clientId}`);
-                    
-                    if (res.status === 429) {
-                        const data = await res.json();
-                        if (data.full) {
-                            showErrorMessage("Room is full! Maximum 2 users allowed.");
-                            break;
-                        }
+        // Initialize Socket.IO connection
+        function initializeSocket() {
+            socket = io();
+            
+            socket.on('connect', () => {
+                console.log('Connected to server');
+                isConnected = true;
+                
+                // Wait for someone to join the room
+                socket.emit('wait-for-join', {
+                    room: myRoom,
+                    client: clientId
+                });
+            });
+            
+            socket.on('disconnect', () => {
+                console.log('Disconnected from server');
+                isConnected = false;
+                // Try to reconnect after a delay
+                setTimeout(() => {
+                    if (!isConnected) {
+                        initializeSocket();
                     }
-                    
-                    if (res.status === 404) {
-                        console.log("Room no longer exists, creating new one");
-                        // Room was cleaned up, generate new room
-                        myRoom = Math.floor(100000 + Math.random() * 900000).toString();
-                        document.getElementById("roomId").textContent = myRoom;
-                        generateQRCode();
-                        continue;
-                    }
-                    
-                    const data = await res.json();
-
-                    if (data.joined) {
-                        // Someone joined! Redirect to chat
-                        window.location.href = `chat.html?room=${myRoom}&client=${clientId}`;
-                        break;
-                    }
-                } catch (err) {
-                    console.error("Check join error", err);
-                    // If there's a network error, continue trying
+                }, 2000);
+            });
+            
+            socket.on('room-full', (data) => {
+                showErrorMessage("Room is full! Maximum 2 users allowed.");
+                socket.disconnect();
+            });
+            
+            socket.on('user-joined', (data) => {
+                if (data.joined && data.userCount > 1) {
+                    // Someone joined! Redirect to chat
+                    socket.disconnect();
+                    window.location.href = `chat.html?room=${myRoom}&client=${clientId}`;
                 }
-                await new Promise(r => setTimeout(r, 1000));
-            }
+            });
+            
+            socket.on('error', (data) => {
+                console.error('Socket error:', data.message);
+                showErrorMessage(data.message);
+            });
         }
 
-        async function joinRoom() {
+        function joinRoom() {
             const joinId = document.getElementById("joinInput").value.trim();
             if (joinId) {
-                try {
-                    // Test if the room is full before redirecting
-                    const res = await fetch(`/recv?room=${joinId}&client=${clientId}`);
-                    
-                    if (res.status === 429) {
-                        const data = await res.json();
-                        if (data.full) {
-                            showErrorMessage("Room is full! Maximum 2 users allowed.");
-                            return;
-                        }
-                    }
-                    
-                    // If not full, proceed to join
-                    window.location.href = `chat.html?room=${joinId}&client=${clientId}`;
-                } catch (err) {
-                    console.error("Error checking room:", err);
-                    // Still try to join if there's a network error
-                    window.location.href = `chat.html?room=${joinId}&client=${clientId}`;
+                // Disconnect from waiting socket if connected
+                if (isConnected && socket) {
+                    socket.disconnect();
                 }
+                
+                // Redirect to chat room
+                window.location.href = `chat.html?room=${joinId}&client=${clientId}`;
             }
         }
 
@@ -402,7 +403,6 @@
             }
         });
 
-        checkForJoin();
     </script>
 
 </body>

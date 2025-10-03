@@ -1,14 +1,22 @@
 const express = require("express");
-const bodyParser = require("body-parser");
+const http = require("http");
+const { Server } = require("socket.io");
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 
-app.use(bodyParser.json());
 app.use(express.static(__dirname));
 
 let rooms = {}; 
-// { roomId: { lastSender: "", text: "", status: {}, clients: [], joinWaiters: [], uniqueUsers: Set } }
+// { roomId: { lastSender: "", text: "", status: {}, uniqueUsers: Set, lastHeartbeat: {}, timestamp: number, creator: string } }
 
 // Helper function to create or get a room
 function getOrCreateRoom(roomId) {
@@ -17,10 +25,10 @@ function getOrCreateRoom(roomId) {
       text: "", 
       lastSender: "", 
       status: {},
-      clients: [], 
-      joinWaiters: [],
       uniqueUsers: new Set(),
-      lastHeartbeat: {} // Track last heartbeat for each user
+      lastHeartbeat: {},
+      timestamp: Date.now(),
+      creator: null
     };
   }
   return rooms[roomId];
@@ -31,178 +39,210 @@ function isRoomFull(room) {
   return room.uniqueUsers.size >= 2;
 }
 
-// Endpoint to check if someone joined your room
-app.get("/check-join", (req, res) => {
-  const roomId = req.query.room;
-  const clientId = req.query.client;
+// Socket.IO connection handling
+io.on('connection', (socket) => {
+  console.log('User connected:', socket.id);
   
-  // Check if room exists and was created by this client recently
-  if (!rooms[roomId]) {
-    // Only create room if this appears to be the room creator
-    rooms[roomId] = {
-      text: "", 
-      lastSender: "", 
-      status: {},
-      clients: [], 
-      joinWaiters: [],
-      uniqueUsers: new Set(),
-      lastHeartbeat: {},
-      creator: clientId // Track who created the room
-    };
-  }
+  let currentRoom = null;
+  let clientId = null;
   
-  const room = rooms[roomId];
-  
-  // Add user to unique users set
-  room.uniqueUsers.add(clientId);
-  
-  // Update heartbeat
-  room.lastHeartbeat[clientId] = Date.now();
-  
-  // Check if room is now full (more than 2 users trying to join)
-  if (isRoomFull(room) && room.uniqueUsers.size > 2) {
-    // Remove the user we just added since room is full
-    room.uniqueUsers.delete(clientId);
-    return res.status(429).json({ error: "Room is full", full: true });
-  }
-
-  // Add this client to the waiting list
-  room.joinWaiters.push({ res, id: clientId });
-});
-
-app.post("/send", (req, res) => {
-  const roomId = req.query.room;
-  const clientId = req.query.client;
-  
-  const room = getOrCreateRoom(roomId);
-  
-  // Add user to unique users set
-  room.uniqueUsers.add(clientId);
-  
-  // Update heartbeat timestamp
-  room.lastHeartbeat[clientId] = Date.now();
-
-  // Update text if provided
-  if (req.body.text !== undefined) {
-    room.text = req.body.text;
-    room.lastSender = clientId;
-  }
-
-  // Update status
-  if (req.body.status) {
-    room.status[clientId] = req.body.status;
-  }
-
-  // If this is the first message in the room and there are join waiters, notify them
-  if (room.joinWaiters.length > 0) {
-    room.joinWaiters.forEach(({ res: waiterRes, id }) => {
-      if (id !== clientId) {
-        waiterRes.json({ joined: true });
-      }
-    });
-    room.joinWaiters = room.joinWaiters.filter(w => w.id === clientId);
-  }
-
-  // Notify all waiting clients except the sender
-  room.clients.forEach(({ res: clientRes, id }) => {
-    if (id !== clientId) {
-      const response = {
-        text: room.text
-      };
-      
-      // Send other user's status
-      const otherClientId = Object.keys(room.status).find(k => k !== id);
-      if (otherClientId && room.status[otherClientId]) {
-        response.status = room.status[otherClientId];
-      }
-      
-      clientRes.json(response);
-    }
-  });
-
-  // Keep only sender's waiting res objects
-  room.clients = room.clients.filter(c => c.id === clientId);
-
-  res.sendStatus(200);
-});
-
-app.get("/recv", (req, res) => {
-  const roomId = req.query.room;
-  const clientId = req.query.client;
-  
-  const room = getOrCreateRoom(roomId);
-  
-  // Check if trying to join a full room
-  if (!room.uniqueUsers.has(clientId) && isRoomFull(room)) {
-    return res.status(429).json({ error: "Room is full", full: true });
-  }
-  
-  // Add user to unique users set
-  room.uniqueUsers.add(clientId);
-  
-  // Update heartbeat timestamp
-  room.lastHeartbeat[clientId] = Date.now();
-
-  // Notify join waiters that someone has joined
-  if (room.joinWaiters.length > 0) {
-    room.joinWaiters.forEach(({ res: waiterRes, id: waiterId }) => {
-      if (waiterId !== clientId) {
-        waiterRes.json({ joined: true });
-      }
-    });
-    room.joinWaiters = [];
-  }
-
-  // If there is new text and it wasn't sent by this client, send immediately
-  if (room.text && room.lastSender !== clientId) {
-    const response = {
-      text: room.text
-    };
+  // Handle room creation/joining
+  socket.on('join-room', (data) => {
+    const { room: roomId, client: userId } = data;
     
-    // Send other user's status
+    if (!roomId || !userId) {
+      socket.emit('error', { message: 'Room ID and Client ID are required' });
+      return;
+    }
+    
+    currentRoom = roomId;
+    clientId = userId;
+    
+    const room = getOrCreateRoom(roomId);
+    
+    // Check if room is full
+    if (!room.uniqueUsers.has(clientId) && isRoomFull(room)) {
+      socket.emit('room-full', { error: "Room is full", full: true });
+      return;
+    }
+    
+    // Add user to room
+    room.uniqueUsers.add(clientId);
+    room.lastHeartbeat[clientId] = Date.now();
+    
+    // Join socket room
+    socket.join(roomId);
+    
+    // Notify others in room that someone joined
+    socket.to(roomId).emit('user-joined', {
+      joined: true,
+      uniqueUsers: Array.from(room.uniqueUsers),
+      userCount: room.uniqueUsers.size
+    });
+    
+    // Send current room state to the new user
+    socket.emit('room-state', {
+      text: room.text,
+      uniqueUsers: Array.from(room.uniqueUsers),
+      userCount: room.uniqueUsers.size,
+      timestamp: room.timestamp || Date.now()
+    });
+    
+    // Send other user's status if available
     const otherClientId = Object.keys(room.status).find(k => k !== clientId);
     if (otherClientId && room.status[otherClientId]) {
-      response.status = room.status[otherClientId];
+      socket.emit('user-status', { status: room.status[otherClientId] });
+    }
+  });
+  
+  // Handle waiting for someone to join (used by room creator)
+  socket.on('wait-for-join', (data) => {
+    const { room: roomId, client: userId } = data;
+    
+    if (!roomId || !userId) {
+      socket.emit('error', { message: 'Room ID and Client ID are required' });
+      return;
     }
     
-    res.json(response);
-  } else {
-    // Otherwise wait
-    room.clients.push({ res, id: clientId });
-  }
-});
-
-app.post("/emoji", (req, res) => {
-  const roomId = req.query.room;
-  const clientId = req.query.client;
-  const emoji = req.body.emoji;
-  
-  const room = getOrCreateRoom(roomId);
-  
-  // Add user to unique users set
-  room.uniqueUsers.add(clientId);
-
-  // Send emoji to all other clients
-  room.clients.forEach(({ res: clientRes, id }) => {
-    if (id !== clientId) {
-      clientRes.json({ emoji });
+    currentRoom = roomId;
+    clientId = userId;
+    
+    const room = getOrCreateRoom(roomId);
+    
+    // Mark this client as the room creator
+    if (!room.creator) {
+      room.creator = userId;
+    }
+    
+    room.uniqueUsers.add(userId);
+    room.lastHeartbeat[userId] = Date.now();
+    
+    // Join socket room
+    socket.join(roomId);
+    
+    // If there are already other users, notify immediately
+    if (room.uniqueUsers.size > 1) {
+      socket.emit('user-joined', {
+        joined: true,
+        uniqueUsers: Array.from(room.uniqueUsers),
+        userCount: room.uniqueUsers.size
+      });
     }
   });
 
-  // Remove notified clients
-  room.clients = room.clients.filter(c => c.id === clientId);
-
-  res.sendStatus(200);
-});
-
-app.post("/disconnect", (req, res) => {
-  const roomId = req.query.room;
-  const clientId = req.query.client;
-  
-  if (rooms[roomId]) {
-    const room = rooms[roomId];
+  // Handle text messages
+  socket.on('send-message', (data) => {
+    if (!currentRoom || !clientId) {
+      socket.emit('error', { message: 'Not connected to a room' });
+      return;
+    }
     
-    console.log(`User ${clientId} disconnecting from room ${roomId}`);
+    const room = getOrCreateRoom(currentRoom);
+    
+    // Update heartbeat timestamp
+    room.lastHeartbeat[clientId] = Date.now();
+
+    // Update text if provided
+    if (data.text !== undefined) {
+      room.text = data.text;
+      room.lastSender = clientId;
+      room.timestamp = Date.now();
+    }
+
+    // Update status
+    if (data.status) {
+      room.status[clientId] = data.status;
+    }
+
+    // Broadcast message to all other users in the room
+    socket.to(currentRoom).emit('message-received', {
+      text: room.text,
+      timestamp: room.timestamp,
+      hasNewContent: true
+    });
+    
+    // Send status update to all other users
+    if (data.status) {
+      socket.to(currentRoom).emit('user-status', {
+        status: data.status,
+        userId: clientId
+      });
+    }
+    
+    // Confirm message sent
+    socket.emit('message-sent', {
+      success: true,
+      timestamp: room.timestamp
+    });
+  });
+
+  // Handle emoji sending
+  socket.on('send-emoji', (data) => {
+    if (!currentRoom || !clientId) {
+      socket.emit('error', { message: 'Not connected to a room' });
+      return;
+    }
+    
+    const { emoji } = data;
+    if (!emoji) {
+      socket.emit('error', { message: 'Emoji is required' });
+      return;
+    }
+    
+    const room = getOrCreateRoom(currentRoom);
+    room.uniqueUsers.add(clientId);
+    room.lastHeartbeat[clientId] = Date.now();
+
+    // Send emoji to all other users in the room
+    socket.to(currentRoom).emit('emoji-received', { emoji });
+    
+    // Confirm emoji sent
+    socket.emit('emoji-sent', { success: true });
+  });
+
+  // Handle heartbeat/status updates
+  socket.on('heartbeat', (data) => {
+    if (!currentRoom || !clientId) {
+      return;
+    }
+    
+    const room = getOrCreateRoom(currentRoom);
+    room.lastHeartbeat[clientId] = Date.now();
+    
+    if (data.status) {
+      room.status[clientId] = data.status;
+      
+      // Broadcast status update to other users
+      socket.to(currentRoom).emit('user-status', {
+        status: data.status,
+        userId: clientId
+      });
+    }
+  });
+
+  // Handle manual disconnect
+  socket.on('disconnect-user', () => {
+    handleUserDisconnect('manual');
+  });
+  
+  // Handle socket disconnect (network issues, browser close, etc.)
+  socket.on('disconnect', (reason) => {
+    console.log('User disconnected:', socket.id, 'Reason:', reason);
+    handleUserDisconnect('socket_disconnect', reason);
+  });
+  
+  // Helper function to handle user disconnection
+  function handleUserDisconnect(type, reason = null) {
+    if (!currentRoom || !clientId) {
+      return;
+    }
+    
+    const room = rooms[currentRoom];
+    if (!room) {
+      return;
+    }
+    
+    console.log(`User ${clientId} disconnecting from room ${currentRoom} (${type})`);
     
     // Update status to disconnected
     room.status[clientId] = 'disconnected';
@@ -210,30 +250,27 @@ app.post("/disconnect", (req, res) => {
     // Remove user from unique users set
     room.uniqueUsers.delete(clientId);
     
-    // Notify other clients about disconnection
-    room.clients.forEach(({ res: clientRes, id }) => {
-      if (id !== clientId) {
-        clientRes.json({ 
-          status: 'disconnected', 
-          userLeft: true,
-          remainingUsers: room.uniqueUsers.size
-        });
-      }
+    // Leave the socket room
+    socket.leave(currentRoom);
+    
+    // Notify other users in the room about disconnection
+    socket.to(currentRoom).emit('user-left', {
+      status: 'disconnected',
+      userLeft: true,
+      remainingUsers: room.uniqueUsers.size,
+      userId: clientId
     });
     
-    // Clean up client connections
-    room.clients = room.clients.filter(c => c.id !== clientId);
-    room.joinWaiters = room.joinWaiters.filter(w => w.id !== clientId);
+    // Clean up heartbeat data
+    delete room.lastHeartbeat[clientId];
+    delete room.status[clientId];
     
     // If room is empty, mark it for deletion
     if (room.uniqueUsers.size === 0) {
-      console.log(`Room ${roomId} is now empty, scheduling for deletion`);
-      // Delete immediately if no users
-      delete rooms[roomId];
+      console.log(`Room ${currentRoom} is now empty, scheduling for deletion`);
+      delete rooms[currentRoom];
     }
   }
-  
-  res.sendStatus(200);
 });
 
 // Function to clean up disconnected users
@@ -261,7 +298,7 @@ function cleanupDisconnectedUsers() {
       delete room.lastHeartbeat[userId];
       
       // Notify other clients
-      room.clients.forEach(({ res: clientRes, id }) => {
+      room.clients && room.clients.forEach(({ res: clientRes, id }) => {
         if (id !== userId) {
           try {
             clientRes.json({ 
@@ -306,8 +343,8 @@ setInterval(() => {
   });
 }, 5 * 60 * 1000);
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
 });
 
-module.exports = app;
+module.exports = { app, server, io };

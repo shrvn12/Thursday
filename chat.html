@@ -486,7 +486,7 @@
           </div>
         </div>
       </div>
-      <div id="other" style="flex: 1; padding-top: 10px; display: block;"></div>
+      <div id="other" style="flex: 1; padding-top: 10px; display: block; overflow-y: auto;"></div>
       <div id="otherRaw" style="flex: 1; display: none;"></div>
     </div>
   </div>
@@ -507,7 +507,13 @@
 
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.5/dist/purify.min.js"></script>
+<script src="/socket.io/socket.io.js"></script>
 <script>
+
+  function scrollToBottom(el) {
+    el.scrollTop = el.scrollHeight;
+  }
+
   const urlParams = new URLSearchParams(window.location.search);
   const currentRoom = urlParams.get("room");
   const clientId = urlParams.get("client") || crypto.randomUUID();
@@ -517,7 +523,11 @@
   }
 
   document.getElementById("roomDisplay").textContent = currentRoom;
-
+  
+  // Initialize Socket.IO connection
+  const socket = io();
+  let isConnected = false;
+ 
   let lastActivity = Date.now();
   let otherUserStatus = 'offline';
   let emojiCounter = 0; // For varied animations
@@ -652,15 +662,10 @@
     }
   }
 
-  async function leaveRoom() {
-    try {
-      await fetch(`/disconnect?room=${currentRoom}&client=${clientId}`, { 
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: 'user_leave' })
-      });
-    } catch (err) {
-      console.error('Error disconnecting:', err);
+  function leaveRoom() {
+    if (isConnected) {
+      socket.emit('disconnect-user');
+      socket.disconnect();
     }
     window.location.href = "index.html";
   }
@@ -683,20 +688,10 @@
     // Show immediate local feedback
     createFloatingEmoji(emoji);
     
-    // Send to server with better error handling
-    fetch(`/emoji?room=${currentRoom}&client=${clientId}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ emoji })
-    })
-    .then(response => {
-      if (!response.ok) {
-        console.error('Server error sending emoji:', response.status);
-      }
-    })
-    .catch(err => {
-      console.error('Network error sending emoji:', err);
-    });
+    // Send to server via Socket.IO
+    if (isConnected) {
+      socket.emit('send-emoji', { emoji });
+    }
     
     toggleEmojiPicker();
   }
@@ -773,82 +768,107 @@
   }
 
 
-  async function poll() {
-    while (true) {
-      try {
-        const res = await fetch(`/recv?room=${currentRoom}&client=${clientId}`);
-        
-        if (res.status === 429) {
-          const errorData = await res.json();
-          if (errorData.full) {
-            alert("Room is full! You have been disconnected.");
-            window.location.href = "index.html";
-            return;
-          }
-        }
-        
-        const data = await res.json();
-        
-        if (data.text !== undefined) {
-          const otherElement = document.getElementById("other");
-          const otherRawElement = document.getElementById("otherRaw");
-          const text = data.text || "";
-          
-          // Store the raw text
-          otherPersonRawText = text;
-          
-          // Update rendered view
-          if (text.trim()) {
-            otherElement.innerHTML = '<div class="markdown-content">' + renderMarkdown(text) + '</div>';
-          } else {
-            otherElement.textContent = text;
-          }
-          
-          // Update raw view if it's currently visible
-          if (isRawViewMode) {
-            otherRawElement.textContent = text;
-          }
-          
-          updateCharCount();
-        }
-        
-        if (data.status) {
-          otherUserStatus = data.status;
-          updateStatusDisplay();
-        }
-        
-        // Handle user leaving the room
-        if (data.userLeft) {
-          console.log(`User left room. Remaining users: ${data.remainingUsers}`);
-          
-          // If no other users remain, redirect to landing page
-          if (data.remainingUsers === 1) {
-            alert("The other user has left the room. Returning to main page.");
-            // Clean disconnect before leaving
-            await fetch(`/disconnect?room=${currentRoom}&client=${clientId}`, { method: 'POST' });
-            window.location.href = "index.html";
-            return;
-          }
-        }
-        
-        if (data.emoji) {
-          createFloatingEmoji(data.emoji);
-        }
-      } catch (err) {
-        console.error("Polling error", err);
-        await new Promise(r => setTimeout(r, 1000));
-      }
+  // Socket.IO event handlers
+  socket.on('connect', () => {
+    console.log('Connected to server');
+    isConnected = true;
+    
+    // Join the room
+    socket.emit('join-room', {
+      room: currentRoom,
+      client: clientId
+    });
+  });
+  
+  socket.on('disconnect', () => {
+    console.log('Disconnected from server');
+    isConnected = false;
+    otherUserStatus = 'offline';
+    updateStatusDisplay();
+  });
+  
+  socket.on('room-full', (data) => {
+    alert("Room is full! You have been disconnected.");
+    window.location.href = "index.html";
+  });
+  
+  socket.on('room-state', (data) => {
+    // Receive initial room state when joining
+    if (data.text !== undefined) {
+      updateOtherPersonText(data.text);
     }
+  });
+  
+  socket.on('message-received', (data) => {
+    if (data.text !== undefined) {
+      updateOtherPersonText(data.text);
+    }
+  });
+  
+  socket.on('user-status', (data) => {
+    otherUserStatus = data.status;
+    updateStatusDisplay();
+  });
+  
+  socket.on('user-left', (data) => {
+    console.log(`User left room. Remaining users: ${data.remainingUsers}`);
+    
+    otherUserStatus = 'disconnected';
+    updateStatusDisplay();
+    
+    // If no other users remain, redirect to landing page
+    if (data.remainingUsers === 0) {
+      alert("The other user has left the room. Returning to main page.");
+      socket.disconnect();
+      window.location.href = "index.html";
+    }
+  });
+  
+  socket.on('emoji-received', (data) => {
+    createFloatingEmoji(data.emoji);
+  });
+  
+  socket.on('error', (data) => {
+    console.error('Socket error:', data.message);
+  });
+  
+  // Helper function to update other person's text
+  function updateOtherPersonText(text) {
+
+    const otherElement = document.getElementById("other");
+    const otherRawElement = document.getElementById("otherRaw");
+    scrollToBottom(otherElement);
+    // Store the raw text
+    otherPersonRawText = text || "";
+    
+    // Update rendered view
+    if (text && text.trim()) {
+      otherElement.innerHTML = '<div class="markdown-content">' + renderMarkdown(text) + '</div>';
+    } else {
+      otherElement.textContent = text || "";
+    }
+    
+    // Update raw view if it's currently visible
+    if (isRawViewMode) {
+      otherRawElement.textContent = text || "";
+      scrollToBottom(otherRawElement);
+    }
+    
+    updateCharCount();
   }
 
   function sendUpdate() {
+    if (!isConnected) {
+      return;
+    }
+    
     const text = document.getElementById("me").innerText;
     const status = updateMyStatus();
     
-    fetch(`/send?room=${currentRoom}&client=${clientId}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, status })
+    // Send message via Socket.IO
+    socket.emit('send-message', {
+      text: text,
+      status: status
     });
     
     lastActivity = Date.now();
@@ -862,9 +882,10 @@
   
   // Handle tab close/page navigation
   window.addEventListener('beforeunload', () => {
-    // Send disconnect signal synchronously
-    navigator.sendBeacon(`/disconnect?room=${currentRoom}&client=${clientId}`, 
-      JSON.stringify({reason: 'page_unload'}));
+    if (isConnected) {
+      socket.emit('disconnect-user');
+      socket.disconnect();
+    }
   });
   
   // Handle page visibility changes for better disconnect detection
@@ -883,7 +904,13 @@
   document.getElementById("me").addEventListener("keyup", sendUpdate);
 
   // Send heartbeat every 5 seconds
-  setInterval(sendUpdate, 5000);
+  setInterval(() => {
+    if (isConnected) {
+      const status = updateMyStatus();
+      socket.emit('heartbeat', { status });
+      lastActivity = Date.now();
+    }
+  }, 5000);
   
   // Cleanup orphaned emoji elements every 10 seconds
   setInterval(() => {
@@ -907,7 +934,7 @@
     window.location.href = `chat.html?room=${autoJoin}&client=${clientId}`;
   }
 
-  poll();
+  // Initialize character count
   updateCharCount();
 </script>
 
